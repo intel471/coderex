@@ -94,15 +94,18 @@ class Coderex:
         return combined_parts
 
     def _optimize_byte_alternation(self, alernation_list):
+        mbr_present = False
         optimized_parts = []
         range_start = range_end = alernation_list[0]
 
         def add_range(range_start_, range_end_):
+            nonlocal mbr_present
             if range_start_ == range_end_:
                 # Single byte range, add directly
                 optimized_parts.append(self._bytes_to_hxstr(range_start_))
             else:
                 # Multiple byte range, add as a range if distance > 1
+                mbr_present = True
                 range_str = self._bytes_to_hxstr(range_start_)
                 if ord(range_start_) + 1 < ord(range_end_):
                     range_str += "-"
@@ -119,7 +122,12 @@ class Coderex:
                 range_start = range_end = b
         # Add the last range or byte
         add_range(range_start, range_end)
-        return optimized_parts
+
+        # Join the optimized alternation and add brackets
+        opt_alternation = ''.join(optimized_parts)
+        if len(optimized_parts) > 1 or mbr_present:
+            opt_alternation = f"[{opt_alternation}]"
+        return opt_alternation
 
     def _optimize_multibyte_alternation(self, alernation_list):
         regex = ""
@@ -145,11 +153,8 @@ class Coderex:
                 # Optimize prefixes
                 if all([len(x) == 1 for x in prefixes_for_suffix]):
                     # Create a one byte alternation for prefix
-                    optimized_parts = self._optimize_byte_alternation(sorted(set(prefixes_for_suffix)))
-                    prefix_range = ''.join(optimized_parts)
-                    if len(optimized_parts) > 1:
-                        prefix_range = f"[{prefix_range}]"
-                    optimized_patterns.append(prefix_range + self._bytes_to_hxstr(g_suffix))
+                    opt_alternation = self._optimize_byte_alternation(sorted(set(prefixes_for_suffix)))
+                    optimized_patterns.append(opt_alternation + self._bytes_to_hxstr(g_suffix))
                 else:
                     # Multibyte alternation for the suffix, break it down
                     optimized_patterns.append(
@@ -159,11 +164,8 @@ class Coderex:
                 # Multiple variants, optimize
                 if all([len(x) == 1 for x in g_suffixes]):
                     # One byte alternation
-                    optimized_parts = self._optimize_byte_alternation(sorted(set(g_suffixes)))
-                    suffix_range = ''.join(optimized_parts)
-                    if len(suffix_range) > 1:
-                        suffix_range = f"[{suffix_range}]"
-                    optimized_patterns.append(self._bytes_to_hxstr(g_prefix) + suffix_range)
+                    opt_alternation = self._optimize_byte_alternation(sorted(set(g_suffixes)))
+                    optimized_patterns.append(self._bytes_to_hxstr(g_prefix) + opt_alternation)
                 else:
                     # Another multibyte alternation for this suffix, keep breaking it down
                     optimized_patterns.append(
@@ -204,10 +206,7 @@ class Coderex:
         trimmed_byte_lists.sort()
         if all(len(_bytes) == 1 for _bytes in trimmed_byte_lists):
             # Optimize and combine all parts
-            optimized_parts = self._optimize_byte_alternation(sorted(set(trimmed_byte_lists)))
-            regex = ''.join(optimized_parts)
-            if len(optimized_parts) > 1:
-                regex = f"[{regex}]"
+            regex = self._optimize_byte_alternation(sorted(set(trimmed_byte_lists)))
         else:
             regex = self._optimize_multibyte_alternation(trimmed_byte_lists)
 

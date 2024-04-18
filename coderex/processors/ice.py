@@ -323,7 +323,7 @@ class Ice(Coderex):
                 # Generate variants for stack accesses
                 if mem_base and self.is_stack_reg(mem_base):
                     # Wildcard the current stack access offset
-                    packed_off = pack_b_or_dw(ic_inst.memory_displacement)
+                    packed_off = pack_b_or_dw(ic_inst.memory_displacement & 0xffffffff)
                     to_wildcard.append(packed_off)
 
                     # For given instruction with an access offset size, regenerate it w/ the opposite offset size.
